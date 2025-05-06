@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Custom Code Language Editor</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: monospace;
+      background: #1e1e1e;
+      color: white;
+    }
+    .container {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .editor {
+      flex: 1;
+      background: #2d2d2d;
+      color: white;
+      padding: 10px;
+      border-right: 2px solid #3c3c3c;
+      outline: none;
+      overflow-y: auto;
+      white-space: pre;
+    }
+    .output-wrapper {
+      width: 700px;
+      display: flex;
+      flex-direction: column;
+    }
+    .preview {
+      flex: 1;
+      background: #1e1e1e;
+      border-bottom: 2px solid #3c3c3c;
+    }
+    .tools {
+      height: 120px;
+      background: #2d2d2d;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+    }
+    .tools button {
+      background: #3c3c3c;
+      border: none;
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .tools button:hover {
+      background: #007acc;
+    }
+    textarea {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="editor" id="editor" contenteditable="true"></div>
+    <div class="output-wrapper">
+      <iframe class="preview" id="preview"></iframe>
+      <div class="tools">
+        <button onclick="runLive()">Run</button>
+        <button onclick="saveCode()">Save</button>
+        <button onclick="loadCode()">Load</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const editor = document.getElementById('editor');
+    const preview = document.getElementById('preview');
+
+    function convertBlockToJS(block) {
+      const lines = block.split(';').map(line => line.trim()).filter(Boolean);
+      let js = '';
+      for (let line of lines) {
+        if (/Ctx\.square *= *\"(.*?)\"/.test(line)) {
+          js += `ctx.fillStyle = "${line.match(/Ctx\.square *= *\"(.*?)\"/)[1]}";\n`;
+        } else if (/ctx\.fill\((.*?)\)/.test(line)) {
+          js += `ctx.fillRect(${line.match(/ctx\.fill\((.*?)\)/)[1]});\n`;
+        } else if (/Ctx\.circle *= *\"(.*?)\"/.test(line)) {
+          js += `ctx.fillStyle = "${line.match(/Ctx\.circle *= *\"(.*?)\"/)[1]}";\n`;
+        } else if (/ctx\.circle\((.*?)\)/.test(line)) {
+          const [x, y, w, h] = line.match(/ctx\.circle\((.*?)\)/)[1].split(',');
+          js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
+        } else if (/Ctx\.text *= *\"(.*?)\"/.test(line)) {
+          const currentText = line.match(/Ctx\.text *= *\"(.*?)\"/)[1];
+          js += `ctx.fillText("${currentText}", 0, 0);\n`;
+        } else if (/ctx\.text\((.*?)\)/.test(line)) {
+          const [x, y, size] = line.match(/ctx\.text\((.*?)\)/)[1].split(',');
+          js += `ctx.font = "${size}px sans-serif";\nctx.fillText("${currentText}", ${x}, ${y});\n`;
+        }
+      }
+      return js;
+    }
+
+    function customToJS(code) {
+      code = code.replace(/'/g, '"');
+      code = code.replace(/<false>/g, '//');
+      code = code.replace(/<true>/g, '');
+
+      const replaceMatches = code.match(/replace\s*{([\s\S]*?)}\s*with\s*{([\s\S]*?)}/);
+      if (replaceMatches) {
+        const [_, from, to] = replaceMatches;
+        code = code.replace(from.trim(), to.trim());
+      }
+
+      code = code.replace(/if\s*{([\s\S]*?)}\s*else\s*{([\s\S]*?)}/g, (match, ifPart, elsePart) => {
+        return `if (${ifPart}) {${ifPart}} else {${elsePart}}`;
+      });
+
+      code = code.replace(/replace\s*{[\s\S]*?}\s*with\s*{[\s\S]*?}/g, '');
+      code = code.replace(/if\s*{[\s\S]*?}\s*else\s*{[\s\S]*?}/g, '');
+
+      const lines = code.split(';').map(line => line.trim()).filter(Boolean);
+      let js = `const canvas = document.createElement('canvas');\nconst ctx = canvas.getContext('2d');\ndocument.body.appendChild(canvas);\n`;
+      let currentText = '';
+      const ids = {};
+
+      for (let line of lines) {
+        if (line.startsWith('[') && line.includes('id("')) {
+          const idMatch = line.match(/id\("(.*?)"\)/);
+          if (idMatch) {
+            const id = idMatch[1];
+            const content = line.match(/\[(.*?)\]/s)[1];
+            ids[id] = content;
+            line = content;
+          }
+        }
+
+        if (/^canvas\.(\d+) *= *\"(.*?)\"/.test(line)) {
+          const color = line.match(/^canvas\.(\d+) *= *\"(.*?)\"/)[2];
+          js += `canvas.style.background = "${color}";\n`;
+        } else if (/Canvas\.width\((.*?)\)/.test(line)) {
+          let width = line.match(/Canvas\.width\((.*?)\)/)[1].trim();
+          width = width === 'windowWidth' ? 'window.innerWidth' : width;
+          js += `canvas.width = ${width};\n`;
+        } else if (/Canvas\.height\((.*?)\)/.test(line)) {
+          let height = line.match(/Canvas\.height\((.*?)\)/)[1].trim();
+          height = height === 'windowHeight' ? 'window.innerHeight' : height;
+          js += `canvas.height = ${height};\n`;
+        } else if (/Ctx\.square *= *\"(.*?)\"/.test(line)) {
+          js += `ctx.fillStyle = "${line.match(/Ctx\.square *= *\"(.*?)\"/)[1]}";\n`;
+        } else if (/ctx\.fill\((.*?)\)/.test(line)) {
+          js += `ctx.fillRect(${line.match(/ctx\.fill\((.*?)\)/)[1]});\n`;
+        } else if (/Ctx\.circle *= *\"(.*?)\"/.test(line)) {
+          js += `ctx.fillStyle = "${line.match(/Ctx\.circle *= *\"(.*?)\"/)[1]}";\n`;
+        } else if (/ctx\.circle\((.*?)\)/.test(line)) {
+          const [x, y, w, h] = line.match(/ctx\.circle\((.*?)\)/)[1].split(',');
+          js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
+        } else if (/Ctx\.text *= *\"(.*?)\"/.test(line)) {
+          currentText = line.match(/Ctx\.text *= *\"(.*?)\"/)[1];
+        } else if (/ctx\.text\((.*?)\)/.test(line)) {
+          const [x, y, size] = line.match(/ctx\.text\((.*?)\)/)[1].split(',');
+          js += `ctx.font = "${size}px sans-serif";\nctx.fillText("${currentText}", ${x}, ${y});\n`;
+        } else if (/addEventListener *= *\"(.*?)\"/.test(line)) {
+          const evt = line.match(/addEventListener *= *\"(.*?)\"/)[1];
+          js += `document.addEventListener("${evt}", () => {\n`;
+        } else if (/EventListener *= *\"(.*?)\"/.test(line)) {
+          const target = line.match(/EventListener *= *\"(.*?)\"/)[1];
+          const codeBlock = ids[target] || '';
+          js += convertBlockToJS(codeBlock) + '});\n';
+        } else if (/addMusic *= *\"(.*?)\"/.test(line)) {
+          const url = line.match(/addMusic *= *\"(.*?)\"/)[1];
+          js += `const music = new Audio('${url}');\nmusic.loop = true;\nmusic.play();\n`;
+        }
+      }
+
+      return js;
+    }
+
+    function runLive() {
+      const rawCode = editor.innerText;
+      const js = customToJS(rawCode);
+      const html = `<!DOCTYPE html><html><body style='margin:0'><script>${js}<\/script></body></html>`;
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      preview.src = url;
+    }
+
+    function saveCode() {
+      localStorage.setItem('customCode', editor.innerText);
+      alert('Code saved!');
+    }
+
+    function loadCode() {
+      const code = localStorage.getItem('customCode');
+      if (code) {
+        editor.innerText = code;
+        runLive();
+      } else {
+        alert('No saved code found.');
+      }
+    }
+
+    window.onload = loadCode;
+  </script>
+</body>
+</html>
