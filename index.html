@@ -69,6 +69,7 @@
         <button onclick="runLive()">Run</button>
         <button onclick="saveCode()">Save</button>
         <button onclick="loadCode()">Load</button>
+        <button onclick="openPreview()">Open Preview in New Tab</button>
       </div>
     </div>
   </div>
@@ -77,16 +78,26 @@
     const editor = document.getElementById('editor');
     const preview = document.getElementById('preview');
 
+    function isValidColor(color) {
+      const s = new Option().style;
+      s.color = color;
+      return s.color !== '';
+    }
+
     function convertBlockToJS(block) {
       const lines = block.split(';').map(line => line.trim()).filter(Boolean);
       let js = '';
       for (let line of lines) {
         if (/Ctx\.square *= *\"(.*?)\"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\.square *= *\"(.*?)\"/)[1]}";\n`;
+          let color = line.match(/Ctx\.square *= *\"(.*?)\"/)[1];
+          if (!isValidColor(color)) color = `"${color}"`; // Wrap in quotes if not valid color
+          js += `ctx.fillStyle = ${color};\n`;
         } else if (/ctx\.fill\((.*?)\)/.test(line)) {
           js += `ctx.fillRect(${line.match(/ctx\.fill\((.*?)\)/)[1]});\n`;
         } else if (/Ctx\.circle *= *\"(.*?)\"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\.circle *= *\"(.*?)\"/)[1]}";\n`;
+          let color = line.match(/Ctx\.circle *= *\"(.*?)\"/)[1];
+          if (!isValidColor(color)) color = `"${color}"`; // Wrap in quotes if not valid color
+          js += `ctx.fillStyle = ${color};\n`;
         } else if (/ctx\.circle\((.*?)\)/.test(line)) {
           const [x, y, w, h] = line.match(/ctx\.circle\((.*?)\)/)[1].split(',');
           js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
@@ -147,11 +158,15 @@
           height = height === 'windowHeight' ? 'window.innerHeight' : height;
           js += `canvas.height = ${height};\n`;
         } else if (/Ctx\.square *= *\"(.*?)\"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\.square *= *\"(.*?)\"/)[1]}";\n`;
+          let color = line.match(/Ctx\.square *= *\"(.*?)\"/)[1];
+          if (!isValidColor(color)) color = `"${color}"`; // Wrap in quotes if not valid color
+          js += `ctx.fillStyle = ${color};\n`;
         } else if (/ctx\.fill\((.*?)\)/.test(line)) {
           js += `ctx.fillRect(${line.match(/ctx\.fill\((.*?)\)/)[1]});\n`;
         } else if (/Ctx\.circle *= *\"(.*?)\"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\.circle *= *\"(.*?)\"/)[1]}";\n`;
+          let color = line.match(/Ctx\.circle *= *\"(.*?)\"/)[1];
+          if (!isValidColor(color)) color = `"${color}"`; // Wrap in quotes if not valid color
+          js += `ctx.fillStyle = ${color};\n`;
         } else if (/ctx\.circle\((.*?)\)/.test(line)) {
           const [x, y, w, h] = line.match(/ctx\.circle\((.*?)\)/)[1].split(',');
           js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
@@ -198,6 +213,15 @@
       } else {
         alert('No saved code found.');
       }
+    }
+
+    function openPreview() {
+      const rawCode = editor.innerText;
+      const js = customToJS(rawCode);
+      const html = `<!DOCTYPE html><html><body style='margin:0'><script>${js}<\/script></body></html>`;
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
     }
 
     window.onload = loadCode;
