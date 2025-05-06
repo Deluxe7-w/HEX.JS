@@ -77,27 +77,36 @@
   <script>
     const editor = document.getElementById('editor');
     const preview = document.getElementById('preview');
+    let characterImage = '';
 
+    // Function to check if the color is valid (HEX, RGB, or Named color)
     function isValidColor(color) {
       const s = new Option().style;
       s.color = color;
       return s.color !== '';
     }
 
+    // Function to convert shape colors from hex, rgb or color name
+    function parseColor(color) {
+      if (isValidColor(color)) {
+        return `"${color}"`; // If it's a valid color (name, hex, rgb)
+      }
+      return `"yellow"`; // Default to yellow if the color is invalid
+    }
+
     function convertBlockToJS(block) {
       const lines = block.split(';').map(line => line.trim()).filter(Boolean);
       let js = '';
       for (let line of lines) {
+        // Handle setting square and circle colors
         if (/Ctx\.square *= *\"(.*?)\"/.test(line)) {
           let color = line.match(/Ctx\.square *= *\"(.*?)\"/)[1];
-          if (!isValidColor(color)) color = `"${color}"`; // Wrap in quotes if not valid color
-          js += `ctx.fillStyle = ${color};\n`;
+          js += `ctx.fillStyle = ${parseColor(color)};\n`;
         } else if (/ctx\.fill\((.*?)\)/.test(line)) {
           js += `ctx.fillRect(${line.match(/ctx\.fill\((.*?)\)/)[1]});\n`;
         } else if (/Ctx\.circle *= *\"(.*?)\"/.test(line)) {
           let color = line.match(/Ctx\.circle *= *\"(.*?)\"/)[1];
-          if (!isValidColor(color)) color = `"${color}"`; // Wrap in quotes if not valid color
-          js += `ctx.fillStyle = ${color};\n`;
+          js += `ctx.fillStyle = ${parseColor(color)};\n`;
         } else if (/ctx\.circle\((.*?)\)/.test(line)) {
           const [x, y, w, h] = line.match(/ctx\.circle\((.*?)\)/)[1].split(',');
           js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
@@ -112,6 +121,7 @@
       return js;
     }
 
+    // Custom to JS parser function
     function customToJS(code) {
       code = code.replace(/'/g, '"');
       code = code.replace(/<false>/g, '//');
@@ -159,14 +169,12 @@
           js += `canvas.height = ${height};\n`;
         } else if (/Ctx\.square *= *\"(.*?)\"/.test(line)) {
           let color = line.match(/Ctx\.square *= *\"(.*?)\"/)[1];
-          if (!isValidColor(color)) color = `"${color}"`; // Wrap in quotes if not valid color
-          js += `ctx.fillStyle = ${color};\n`;
+          js += `ctx.fillStyle = ${parseColor(color)};\n`;
         } else if (/ctx\.fill\((.*?)\)/.test(line)) {
           js += `ctx.fillRect(${line.match(/ctx\.fill\((.*?)\)/)[1]});\n`;
         } else if (/Ctx\.circle *= *\"(.*?)\"/.test(line)) {
           let color = line.match(/Ctx\.circle *= *\"(.*?)\"/)[1];
-          if (!isValidColor(color)) color = `"${color}"`; // Wrap in quotes if not valid color
-          js += `ctx.fillStyle = ${color};\n`;
+          js += `ctx.fillStyle = ${parseColor(color)};\n`;
         } else if (/ctx\.circle\((.*?)\)/.test(line)) {
           const [x, y, w, h] = line.match(/ctx\.circle\((.*?)\)/)[1].split(',');
           js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
@@ -189,6 +197,39 @@
       }
 
       return js;
+    }
+
+    // Adds character to the canvas
+    function drawCharacter(id, x, y, w, h) {
+      const image = new Image();
+      image.src = characterImage;
+      image.onload = function() {
+        const ctx = document.querySelector('canvas').getContext('2d');
+        ctx.drawImage(image, x, y, w, h);
+      };
+    }
+
+    // Movement logic
+    function playerMovement(id, keys, xMove, yMove) {
+      const allowedKeys = keys.split(''); // Example: "wasd" => [w, a, s, d]
+      const character = document.getElementById(id);
+
+      document.addEventListener('keydown', (event) => {
+        if (allowedKeys.includes(event.key)) {
+          let x = character.offsetLeft;
+          let y = character.offsetTop;
+
+          switch (event.key) {
+            case 'w': y -= yMove; break;
+            case 'a': x -= xMove; break;
+            case 's': y += yMove; break;
+            case 'd': x += xMove; break;
+          }
+
+          character.style.left = `${x}px`;
+          character.style.top = `${y}px`;
+        }
+      });
     }
 
     function runLive() {
