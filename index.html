@@ -1,246 +1,143 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Custom Code Language Editor</title>
+  <meta charset="UTF-8">
+  <title>Custom Language Runner</title>
   <style>
     body {
       margin: 0;
       font-family: monospace;
-      background: #1e1e1e;
-      color: white;
-    }
-    .container {
-      display: flex;
-      height: 100vh;
-      overflow: hidden;
-    }
-    .editor {
-      flex: 1;
-      background: #2d2d2d;
-      color: white;
-      padding: 10px;
-      border-right: 2px solid #3c3c3c;
-      outline: none;
-      overflow-y: auto;
-      white-space: pre;
-    }
-    .output-wrapper {
-      width: 700px;
-      display: flex;
-      flex-direction: column;
-    }
-    .preview {
-      flex: 1;
-      border-bottom: 2px solid #3c3c3c;
-      width: 100%;
-      height: auto;
-      aspect-ratio: 16 / 9;
-      border: 1px solid #444;
-      background: black;
-    }
-    .tools {
-      height: 120px;
-      background: #2d2d2d;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      padding: 10px;
-    }
-    .tools button {
-      background: #3c3c3c;
-      border: none;
-      color: white;
-      padding: 10px;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    .tools button:hover {
-      background: #007acc;
+      background: #111;
+      color: #fff;
     }
     textarea {
-      display: none;
+      width: 100%;
+      height: 200px;
+      background: #222;
+      color: #0f0;
+      border: none;
+      padding: 10px;
+      box-sizing: border-box;
+      resize: none;
+    }
+    #previewCanvas {
+      width: 100%;
+      height: 400px;
+      background: #000;
+      display: block;
+    }
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+      background: #333;
+      color: #fff;
+      border: none;
+      cursor: pointer;
     }
   </style>
 </head>
-<body>
-  <div class="container">
-    <div class="editor" id="editor" contenteditable="true"></div>
-    <div class="output-wrapper">
-      <iframe class="preview" id="preview"></iframe>
-      <div class="tools">
-        <button onclick="runLive()">Run</button>
-        <button onclick="saveCode()">Save</button>
-        <button onclick="loadCode()">Load</button>
-        <button onclick="openInNewTab()">Open Preview in New Tab</button>
-      </div>
-    </div>
+<body onload="loadCode()">
+
+  <textarea id="codeArea" placeholder="Enter custom language code here..."></textarea>
+  <canvas id="previewCanvas" width="800" height="400"></canvas>
+  <div>
+    <button onclick="runCustomCode()">Run</button>
+    <button onclick="previewInNewTab()">Preview in New Tab</button>
+    <button onclick="exportHTML()">Export to HTML</button>
+    <button onclick="exportJava()">Export to Java</button>
   </div>
 
   <script>
-    const editor = document.getElementById('editor');
-    const preview = document.getElementById('preview');
-    let previewBlobUrl = '';
-
-    editor.addEventListener("input", () => {
-      let content = editor.innerText;
-      const spaced = content
-        .split(";")
-        .map(line => line.trim())
-        .filter(Boolean)
-        .map(line => line + ";")
-        .join("<br>");
-      editor.innerHTML = spaced;
-      placeCaretAtEnd(editor);
-    });
-
-    function placeCaretAtEnd(el) {
-      el.focus();
-      if (typeof window.getSelection != "undefined" &&
-          typeof document.createRange != "undefined") {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    }
-
-    function scalePreview(html, scale = 0.5) {
-      return `<!DOCTYPE html><html><body style='margin:0;transform:scale(${scale});transform-origin:top left;'>${html}</body></html>`;
-    }
-
-    function convertBlockToJS(block) {
-      const lines = block.split(';').map(line => line.trim()).filter(Boolean);
-      let js = '';
-      for (let line of lines) {
-        if (/Ctx\.square *= *"(.*?)"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\\.square *= *\"(.*?)\"/)[1]}";\n`;
-        } else if (/ctx\.fill\((.*?)\)/.test(line)) {
-          js += `ctx.fillRect(${line.match(/ctx\\.fill\\((.*?)\\)/)[1]});\n`;
-        } else if (/Ctx\.circle *= *"(.*?)"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\\.circle *= *\"(.*?)\"/)[1]}";\n`;
-        } else if (/ctx\.circle\((.*?)\)/.test(line)) {
-          const [x, y, w, h] = line.match(/ctx\\.circle\\((.*?)\\)/)[1].split(',');
-          js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
-        } else if (/Ctx\.text *= *"(.*?)"/.test(line)) {
-          const currentText = line.match(/Ctx\\.text *= *\"(.*?)\"/)[1];
-          js += `ctx.fillText("${currentText}", 0, 0);\n`;
-        } else if (/ctx\.text\((.*?)\)/.test(line)) {
-          const [x, y, size] = line.match(/ctx\\.text\\((.*?)\\)/)[1].split(',');
-          js += `ctx.font = "${size}px sans-serif";\nctx.fillText("${currentText}", ${x}, ${y});\n`;
-        }
-      }
+    function convertCustomToJS(code) {
+      // Dummy parser for the custom language (real logic should be added here)
+      let js = `
+        const canvas = document.getElementById('previewCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(100, 100, 100, 100);
+      `;
       return js;
     }
 
-    function customToJS(code) {
-      code = code.replace(/'/g, '"');
-      code = code.replace(/<false>/g, '//');
-      code = code.replace(/<true>/g, '');
+    function runCustomCode() {
+      const code = document.getElementById('codeArea').value;
+      const jsCode = convertCustomToJS(code);
 
-      const replaceMatches = code.match(/replace\s*{([\s\S]*?)}\s*with\s*{([\s\S]*?)}/);
-      if (replaceMatches) {
-        const [_, from, to] = replaceMatches;
-        code = code.replace(from.trim(), to.trim());
+      const canvas = document.getElementById('previewCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      try {
+        eval(jsCode);
+      } catch (e) {
+        alert('Error: ' + e.message);
       }
 
-      code = code.replace(/if\s*{([\s\S]*?)}\s*else\s*{([\s\S]*?)}/g, (match, ifPart, elsePart) => {
-        return `if (${ifPart}) {${ifPart}} else {${elsePart}}`;
-      });
+      saveCode();
+    }
 
-      code = code.replace(/replace\s*{[\s\S]*?}\s*with\s*{[\s\S]*?}/g, '');
-      code = code.replace(/if\s*{[\s\S]*?}\s*else\s*{[\s\S]*?}/g, '');
+    function previewInNewTab() {
+      const code = document.getElementById('codeArea').value;
+      const jsCode = convertCustomToJS(code);
+      const win = window.open();
+      win.document.write(`<!DOCTYPE html><html><body><canvas id='previewCanvas' width='800' height='400'></canvas><script>${jsCode}<\/script></body></html>`);
+      win.document.close();
+    }
 
-      const lines = code.split(';').map(line => line.trim()).filter(Boolean);
-      let js = `const canvas = document.createElement('canvas');\nconst ctx = canvas.getContext('2d');\ndocument.body.style.margin = '0';\ndocument.body.style.overflow = 'hidden';\ndocument.body.appendChild(canvas);\n`;
-      let currentText = '';
-      const ids = {};
+    function exportHTML() {
+      const code = document.getElementById('codeArea').value;
+      const jsCode = convertCustomToJS(code);
+      const htmlContent = `<!DOCTYPE html><html><body><canvas id='previewCanvas' width='800' height='400'></canvas><script>${jsCode}<\/script></body></html>`;
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'exported_game.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
 
-      for (let line of lines) {
-        if (line.startsWith('[') && line.includes('id("')) {
-          const idMatch = line.match(/id\\(\"(.*?)\"\\)/);
-          if (idMatch) {
-            const id = idMatch[1];
-            const content = line.match(/\[(.*?)\]/s)[1];
-            ids[id] = content;
-            line = content;
-          }
-        }
+    function exportJava() {
+      const javaCode = `
+import javax.swing.*;
+import java.awt.*;
 
-        if (/^canvas\.(\d+) *= *"(.*?)"/.test(line)) {
-          const color = line.match(/^canvas\\.(\\d+) *= *\"(.*?)\"/)[2];
-          js += `canvas.style.background = "${color}";\n`;
-        } else if (/Canvas\.width\((.*?)\)/.test(line)) {
-          let width = line.match(/Canvas\\.width\\((.*?)\\)/)[1].trim();
-          width = width === 'windowWidth' ? 'window.innerWidth' : width;
-          js += `canvas.width = ${width};\n`;
-        } else if (/Canvas\.height\((.*?)\)/.test(line)) {
-          let height = line.match(/Canvas\\.height\\((.*?)\\)/)[1].trim();
-          height = height === 'windowHeight' ? 'window.innerHeight' : height;
-          js += `canvas.height = ${height};\n`;
-        } else if (/Ctx\.square *= *"(.*?)"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\\.square *= *\"(.*?)\"/)[1]}";\n`;
-        } else if (/ctx\.fill\((.*?)\)/.test(line)) {
-          js += `ctx.fillRect(${line.match(/ctx\\.fill\\((.*?)\\)/)[1]});\n`;
-        } else if (/Ctx\.circle *= *"(.*?)"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\\.circle *= *\"(.*?)\"/)[1]}";\n`;
-        } else if (/ctx\.circle\((.*?)\)/.test(line)) {
-          const [x, y, w, h] = line.match(/ctx\\.circle\\((.*?)\\)/)[1].split(',');
-          js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
-        } else if (/Ctx\.text *= *"(.*?)"/.test(line)) {
-          currentText = line.match(/Ctx\\.text *= *\"(.*?)\"/)[1];
-        } else if (/ctx\.text\((.*?)\)/.test(line)) {
-          const [x, y, size] = line.match(/ctx\\.text\\((.*?)\\)/)[1].split(',');
-          js += `ctx.font = "${size}px sans-serif";\nctx.fillText("${currentText}", ${x}, ${y});\n`;
-        } else if (/addEventListener *= *"(.*?)"/.test(line)) {
-          const evt = line.match(/addEventListener *= *\"(.*?)\"/)[1];
-          js += `document.addEventListener("${evt}", () => {\n`;
-        } else if (/EventListener *= *"(.*?)"/.test(line)) {
-          const target = line.match(/EventListener *= *\"(.*?)\"/)[1];
-          const codeBlock = ids[target] || '';
-          js += convertBlockToJS(codeBlock) + '});\n';
-        } else if (/addMusic *= *"(.*?)"/.test(line)) {
-          const url = line.match(/addMusic *= *\"(.*?)\"/)[1];
-          js += `const music = new Audio('${url}');\nmusic.loop = true;\nmusic.play();\n`;
-        }
+public class GameApp {
+  public static void main(String[] args) {
+    JFrame frame = new JFrame("Game Preview");
+    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    frame.setSize(800, 400);
+    frame.setVisible(true);
+    JPanel panel = new JPanel() {
+      protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        g.setColor(Color.WHITE);
+        g.fillRect(100, 100, 100, 100);
       }
-
-      return js;
-    }
-
-    function runLive() {
-      const rawCode = editor.innerText;
-      const js = customToJS(rawCode);
-      const html = `<script>${js}<\/script>`;
-      const blob = new Blob([scalePreview(html)], { type: 'text/html' });
-      if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
-      previewBlobUrl = URL.createObjectURL(blob);
-      preview.src = previewBlobUrl;
-    }
-
-    function openInNewTab() {
-      if (previewBlobUrl) window.open(previewBlobUrl, '_blank');
+    };
+    frame.add(panel);
+  }
+}`;
+      const blob = new Blob([javaCode], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'GameApp.java';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
     function saveCode() {
-      localStorage.setItem('customCode', editor.innerText);
-      alert('Code saved!');
+      const code = document.getElementById('codeArea').value;
+      localStorage.setItem('customLangCode', code);
     }
 
     function loadCode() {
-      const code = localStorage.getItem('customCode');
+      const code = localStorage.getItem('customLangCode');
       if (code) {
-        editor.innerText = code;
-        runLive();
-      } else {
-        alert('No saved code found.');
+        document.getElementById('codeArea').value = code;
       }
     }
-
-    window.onload = loadCode;
   </script>
 </body>
 </html>
