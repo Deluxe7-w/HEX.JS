@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>HEX.JS💻</title>
+  <title>Custom Code Language Editor</title>
   <style>
     body {
       margin: 0;
@@ -33,13 +33,12 @@
     }
     .preview {
       flex: 1;
-      background: #1e1e1e;
       border-bottom: 2px solid #3c3c3c;
-      transform: scale(0.3);
-      transform-origin: top left;
-      width: calc(100% / 0.3);
-      height: calc(100% / 0.3);
-      pointer-events: none;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      border: 1px solid #444;
+      background: black;
     }
     .tools {
       height: 120px;
@@ -74,6 +73,7 @@
         <button onclick="runLive()">Run</button>
         <button onclick="saveCode()">Save</button>
         <button onclick="loadCode()">Load</button>
+        <button onclick="openInNewTab()">Open Preview in New Tab</button>
       </div>
     </div>
   </div>
@@ -81,22 +81,52 @@
   <script>
     const editor = document.getElementById('editor');
     const preview = document.getElementById('preview');
+    let previewBlobUrl = '';
+
+    editor.addEventListener("input", () => {
+      let content = editor.innerText;
+      const spaced = content
+        .split(";")
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map(line => line + ";")
+        .join("<br>");
+      editor.innerHTML = spaced;
+      placeCaretAtEnd(editor);
+    });
+
+    function placeCaretAtEnd(el) {
+      el.focus();
+      if (typeof window.getSelection != "undefined" &&
+          typeof document.createRange != "undefined") {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+
+    function scalePreview(html, scale = 0.5) {
+      return `<!DOCTYPE html><html><body style='margin:0;transform:scale(${scale});transform-origin:top left;'>${html}</body></html>`;
+    }
 
     function convertBlockToJS(block) {
       const lines = block.split(';').map(line => line.trim()).filter(Boolean);
       let js = '';
       for (let line of lines) {
-        if (/Ctx\.square *= *\"(.*?)\"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\\.square *= *\\\"(.*?)\\\"/)[1]}";\n`;
+        if (/Ctx\.square *= *"(.*?)"/.test(line)) {
+          js += `ctx.fillStyle = "${line.match(/Ctx\\.square *= *\"(.*?)\"/)[1]}";\n`;
         } else if (/ctx\.fill\((.*?)\)/.test(line)) {
           js += `ctx.fillRect(${line.match(/ctx\\.fill\\((.*?)\\)/)[1]});\n`;
-        } else if (/Ctx\.circle *= *\"(.*?)\"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\\.circle *= *\\\"(.*?)\\\"/)[1]}";\n`;
+        } else if (/Ctx\.circle *= *"(.*?)"/.test(line)) {
+          js += `ctx.fillStyle = "${line.match(/Ctx\\.circle *= *\"(.*?)\"/)[1]}";\n`;
         } else if (/ctx\.circle\((.*?)\)/.test(line)) {
           const [x, y, w, h] = line.match(/ctx\\.circle\\((.*?)\\)/)[1].split(',');
           js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
-        } else if (/Ctx\.text *= *\"(.*?)\"/.test(line)) {
-          const currentText = line.match(/Ctx\\.text *= *\\\"(.*?)\\\"/)[1];
+        } else if (/Ctx\.text *= *"(.*?)"/.test(line)) {
+          const currentText = line.match(/Ctx\\.text *= *\"(.*?)\"/)[1];
           js += `ctx.fillText("${currentText}", 0, 0);\n`;
         } else if (/ctx\.text\((.*?)\)/.test(line)) {
           const [x, y, size] = line.match(/ctx\\.text\\((.*?)\\)/)[1].split(',');
@@ -125,7 +155,7 @@
       code = code.replace(/if\s*{[\s\S]*?}\s*else\s*{[\s\S]*?}/g, '');
 
       const lines = code.split(';').map(line => line.trim()).filter(Boolean);
-      let js = `const canvas = document.createElement('canvas');\nconst ctx = canvas.getContext('2d');\ndocument.body.appendChild(canvas);\n`;
+      let js = `const canvas = document.createElement('canvas');\nconst ctx = canvas.getContext('2d');\ndocument.body.style.margin = '0';\ndocument.body.style.overflow = 'hidden';\ndocument.body.appendChild(canvas);\n`;
       let currentText = '';
       const ids = {};
 
@@ -140,8 +170,8 @@
           }
         }
 
-        if (/^canvas\.(\d+) *= *\"(.*?)\"/.test(line)) {
-          const color = line.match(/^canvas\\.(\\d+) *= *\\\"(.*?)\\\"/)[2];
+        if (/^canvas\.(\d+) *= *"(.*?)"/.test(line)) {
+          const color = line.match(/^canvas\\.(\\d+) *= *\"(.*?)\"/)[2];
           js += `canvas.style.background = "${color}";\n`;
         } else if (/Canvas\.width\((.*?)\)/.test(line)) {
           let width = line.match(/Canvas\\.width\\((.*?)\\)/)[1].trim();
@@ -151,28 +181,28 @@
           let height = line.match(/Canvas\\.height\\((.*?)\\)/)[1].trim();
           height = height === 'windowHeight' ? 'window.innerHeight' : height;
           js += `canvas.height = ${height};\n`;
-        } else if (/Ctx\.square *= *\"(.*?)\"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\\.square *= *\\\"(.*?)\\\"/)[1]}";\n`;
+        } else if (/Ctx\.square *= *"(.*?)"/.test(line)) {
+          js += `ctx.fillStyle = "${line.match(/Ctx\\.square *= *\"(.*?)\"/)[1]}";\n`;
         } else if (/ctx\.fill\((.*?)\)/.test(line)) {
           js += `ctx.fillRect(${line.match(/ctx\\.fill\\((.*?)\\)/)[1]});\n`;
-        } else if (/Ctx\.circle *= *\"(.*?)\"/.test(line)) {
-          js += `ctx.fillStyle = "${line.match(/Ctx\\.circle *= *\\\"(.*?)\\\"/)[1]}";\n`;
+        } else if (/Ctx\.circle *= *"(.*?)"/.test(line)) {
+          js += `ctx.fillStyle = "${line.match(/Ctx\\.circle *= *\"(.*?)\"/)[1]}";\n`;
         } else if (/ctx\.circle\((.*?)\)/.test(line)) {
           const [x, y, w, h] = line.match(/ctx\\.circle\\((.*?)\\)/)[1].split(',');
           js += `ctx.beginPath();\nctx.ellipse(${x}, ${y}, ${w}/2, ${h}/2, 0, 0, 2 * Math.PI);\nctx.fill();\n`;
-        } else if (/Ctx\.text *= *\"(.*?)\"/.test(line)) {
-          currentText = line.match(/Ctx\\.text *= *\\\"(.*?)\\\"/)[1];
+        } else if (/Ctx\.text *= *"(.*?)"/.test(line)) {
+          currentText = line.match(/Ctx\\.text *= *\"(.*?)\"/)[1];
         } else if (/ctx\.text\((.*?)\)/.test(line)) {
           const [x, y, size] = line.match(/ctx\\.text\\((.*?)\\)/)[1].split(',');
           js += `ctx.font = "${size}px sans-serif";\nctx.fillText("${currentText}", ${x}, ${y});\n`;
-        } else if (/addEventListener *= *\"(.*?)\"/.test(line)) {
+        } else if (/addEventListener *= *"(.*?)"/.test(line)) {
           const evt = line.match(/addEventListener *= *\"(.*?)\"/)[1];
           js += `document.addEventListener("${evt}", () => {\n`;
-        } else if (/EventListener *= *\"(.*?)\"/.test(line)) {
+        } else if (/EventListener *= *"(.*?)"/.test(line)) {
           const target = line.match(/EventListener *= *\"(.*?)\"/)[1];
           const codeBlock = ids[target] || '';
           js += convertBlockToJS(codeBlock) + '});\n';
-        } else if (/addMusic *= *\"(.*?)\"/.test(line)) {
+        } else if (/addMusic *= *"(.*?)"/.test(line)) {
           const url = line.match(/addMusic *= *\"(.*?)\"/)[1];
           js += `const music = new Audio('${url}');\nmusic.loop = true;\nmusic.play();\n`;
         }
@@ -184,10 +214,15 @@
     function runLive() {
       const rawCode = editor.innerText;
       const js = customToJS(rawCode);
-      const html = `<!DOCTYPE html><html><body style='margin:0'><script>${js}<\/script></body></html>`;
-      const blob = new Blob([html], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      preview.src = url;
+      const html = `<script>${js}<\/script>`;
+      const blob = new Blob([scalePreview(html)], { type: 'text/html' });
+      if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
+      previewBlobUrl = URL.createObjectURL(blob);
+      preview.src = previewBlobUrl;
+    }
+
+    function openInNewTab() {
+      if (previewBlobUrl) window.open(previewBlobUrl, '_blank');
     }
 
     function saveCode() {
