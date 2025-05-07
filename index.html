@@ -49,13 +49,56 @@
 
   <script>
     function convertCustomToJS(code) {
-      // Dummy parser for the custom language (real logic should be added here)
+      const lines = code.split(';').map(line => line.trim()).filter(Boolean);
       let js = `
-        const canvas = document.getElementById('previewCanvas');
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(100, 100, 100, 100);
-      `;
+const canvas = document.getElementById('previewCanvas');
+const ctx = canvas.getContext('2d');
+`;
+
+      for (let line of lines) {
+        if (line.startsWith('Canvas.') && line.includes('=')) {
+          let [canvas, color] = line.split('=').map(s => s.trim());
+          js += `canvas.style.backgroundColor = ${color};\n`;
+        }
+        if (line.startsWith('Canvas.width(')) {
+          let val = line.match(/Canvas\.width\(([^)]+)\)/)[1];
+          js += `canvas.width = ${val};\n`;
+        }
+        if (line.startsWith('Canvas.height(')) {
+          let val = line.match(/Canvas\.height\(([^)]+)\)/)[1];
+          js += `canvas.height = ${val};\n`;
+        }
+        if (line.startsWith('Ctx.square')) {
+          let color = line.split('=')[1].trim().replace(/['"]/g, '');
+          js += `ctx.fillStyle = '${color}';\n`;
+        }
+        if (line.startsWith('ctx.fill(')) {
+          let args = line.match(/ctx\.fill\(([^)]+)\)/)[1];
+          js += `ctx.fillRect(${args});\n`;
+        }
+        if (line.startsWith('Ctx.circle')) {
+          let color = line.split('=')[1].trim().replace(/['"]/g, '');
+          js += `ctx.fillStyle = '${color}';\n`;
+        }
+        if (line.startsWith('ctx.fillCircle(')) {
+          let [x, y, w, h] = line.match(/\(([^)]+)\)/)[1].split(',').map(Number);
+          let radius = Math.min(w, h) / 2;
+          js += `ctx.beginPath(); ctx.arc(${x + radius}, ${y + radius}, ${radius}, 0, Math.PI * 2); ctx.fill();\n`;
+        }
+        if (line.startsWith('Ctx.text')) {
+          let color = line.split('=')[1].trim().replace(/['"]/g, '');
+          js += `ctx.fillStyle = '${color}';\n`;
+        }
+        if (line.startsWith('ctx.fillText(')) {
+          let [x, y, ...rest] = line.match(/\(([^)]+)\)/)[1].split(',');
+          js += `ctx.font = 'italic 20px Arial'; ctx.fillText(${rest.join(',').trim()}, ${x}, ${y});\n`;
+        }
+        if (line.startsWith('Ctx.print')) {
+          let text = line.split('=')[1].trim().replace(/['"]/g, '');
+          js += `ctx.fillText('${text}', 10, 50);\n`;
+        }
+      }
+
       return js;
     }
 
